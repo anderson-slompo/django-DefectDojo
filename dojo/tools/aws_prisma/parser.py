@@ -1,3 +1,5 @@
+
+import hashlib
 import io
 import csv
 import textwrap
@@ -36,7 +38,7 @@ class AWSPrismaParser(object):
             content = content.decode("utf-8")
         csv_reader = csv.DictReader(io.StringIO(content))
 
-        findings = []
+        dupes = dict()
 
         for row in csv_reader:
 
@@ -61,20 +63,26 @@ class AWSPrismaParser(object):
                 "\n**Description:** " + str(row.get('Description', '')) + \
                 "\n**AWS Account:** " + str(account) + " | **Region:** " + str(region) + \
                 "\n**Compliance:** " + str(compliance)
-
-            find = Finding(
-                title=textwrap.shorten(title, 150),
-                cwe=1032,
-                test=test,
-                description=description,
-                component_name=component_name,
-                unique_id_from_tool=unique_id_from_tool,
-                severity=severity,
-                date=dateFind,
-                static_finding=True,
-                dynamic_finding=False,
-                nb_occurences=1,
-                mitigation=mitigation,
-            )
-            findings.append(find)
-        return findings
+            dupe_key = hashlib.sha256(unique_id_from_tool.encode('utf-8')).hexdigest()
+            if dupe_key in dupes:
+                find = dupes[dupe_key]
+                if description is not None:
+                    find.description += description + "\n\n"
+                find.nb_occurences += 1
+            else:
+                find = Finding(
+                    title=textwrap.shorten(title, 150),
+                    cwe=1032,
+                    test=test,
+                    description=description,
+                    component_name=component_name,
+                    unique_id_from_tool=unique_id_from_tool,
+                    severity=severity,
+                    date=dateFind,
+                    static_finding=True,
+                    dynamic_finding=False,
+                    nb_occurences=1,
+                    mitigation=mitigation,
+                )
+                dupes[dupe_key] = find
+        return list(dupes.values())
